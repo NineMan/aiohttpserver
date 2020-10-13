@@ -1,0 +1,6 @@
+mysql:
+  database: aiohttpdemo_polls
+  user: aiohttpdemo_user
+  password: aiohttpdemo_pass
+  host: localhost
+  port: 3306
