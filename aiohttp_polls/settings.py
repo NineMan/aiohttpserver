@@ -1,12 +1,13 @@
-import pathlib
-import yaml
+from pathlib import Path
+from yaml import safe_load
 
-BASE_DIR = pathlib.Path(__file__).parent.parent
+
+BASE_DIR = Path(__file__).parent.parent
 config_path = BASE_DIR / 'config' / 'polls.yaml'
 
 def get_config(path):
     with open(path) as f:
-        config = yaml.safe_load(f)
+        config = safe_load(f)
     return config
 
 config = get_config(config_path)

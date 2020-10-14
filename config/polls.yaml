@@ -4,3 +4,5 @@ mysql:
   password: aiohttpdemo_pass
   host: localhost
   port: 3306
+  minsize: 1
+  maxsize: 5  

@@ -3,24 +3,29 @@ import db
 import logging
 
 
+async def mysql_get_handler(request):
+    async with request.app['db'].acquire() as connection:
+        async with connection.cursor() as cursor:
+            query = "SELECT email, password FROM users"
+            await cursor.execute(query)
+            records = await cursor.fetchall()
 
-async def index(request):
-    async with request.app['db'] as connection:
-        
-#        logging.basicConfig(level=logging.INFO, 
-#                            filename='app.log', 
-#                            filemode='w', 
-#                            format='%(name)s - %(levelname)s - %(message)s')
-        
-        cursor = await connection.cursor()
-        await cursor.execute("SELECT email, password FROM users")
-        records = await cursor.fetchall()
-#        print(records)
-#        print(type(records))
-        answer = ''
-        for record in records:
-            for field in record:
-                answer += field + ' '
-            answer += '\n'
-        print('answer =', answer)
-        return web.Response(text=answer)
+            answer = ''
+            for record in records:
+                for field in record:
+                    answer += field + ' '
+                answer += '\n'
+
+    return web.Response(text=answer)
+
+
+async def mysql_post_handler(request):
+    pass
+
+
+async def redis_get_handler(request):
+    pass
+
+
+async def redis_post_handler(request):
+    pass

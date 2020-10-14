@@ -1,18 +1,21 @@
-from aiomysql import connect
+from aiomysql import create_pool
+import asyncio
 
 
 async def init_mysql(app):
-    conf = app['config']['mysql']
-    engine = await connect(
-        host=conf['host'],
-        port=conf['port'],
-        user=conf['user'],
-        password=conf['password'],
-        db=conf['database'],
-    )
-    app['db'] = engine
+    config = app['config']['mysql']
+    pool = await create_pool(
+        host=config['host'],
+        port=config['port'],
+        user=config['user'],
+        password=config['password'],
+        db=config['database'],
+        minsize=config['minsize'],
+        maxsize=config['maxsize'],
+        )
+    app['db'] = pool
 
 
 async def close_mysql(app):
     app['db'].close()
-#     await app['db'].wait_closed()
+    await app['db'].wait_closed()
