@@ -1,7 +1,7 @@
 mysql:
-  database: aiohttpdemo_polls
-  user: aiohttpdemo_user
-  password: aiohttpdemo_pass
+  database: neovox_test
+  user: neovox_user
+  password: neovox_pass
   host: localhost
   port: 3306
   minsize: 1
