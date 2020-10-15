@@ -18,7 +18,24 @@ async def mysql_get_handler(request):
 
 
 async def mysql_post_handler(request):
-    pass
+    if request.method == 'POST':
+        print('method = POST')
+        async with request.app['db'].acquire() as connection:
+            async with connection.cursor() as cursor:
+                query = "INSERT neovox_products (product_name, description, value) VALUES ('Test', 'Test', 3)"
+                await cursor.execute(query)
+                await connection.commit()
+        return web.Response(text="Success INSERT data")
+    return web.Response(text="Error INSERT data")
+
+
+async def mysql_delete_handler(request):
+    async with request.app['db'].acquire() as connection:
+        async with connection.cursor() as cursor:
+            query = "DELETE FROM neovox_products WHERE product_name='Test'"
+            await cursor.execute(query)
+            await connection.commit()
+    return web.Response(text="DELETE succesfully")
 
 
 async def redis_get_handler(request):
