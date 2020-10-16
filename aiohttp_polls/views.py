@@ -1,6 +1,7 @@
 from aiohttp import web
-import db
-import logging
+
+
+PRODUCT = ['id', 'product_name', 'description', 'value']
 
 
 async def mysql_get_handler(request):
@@ -10,32 +11,84 @@ async def mysql_get_handler(request):
             await cursor.execute(query)
             records = await cursor.fetchall()
 
-            answer = ''
+            response = []
             for record in records:
-                answer = answer + ' : '.join(map(str, record)) + '\n'
+                resp = dict(zip(PRODUCT, record))
+                response.append(resp)
 
-    return web.Response(text=answer)
+            return web.json_response(response)
 
 
 async def mysql_post_handler(request):
     if request.method == 'POST':
-        print('method = POST')
         async with request.app['db'].acquire() as connection:
             async with connection.cursor() as cursor:
-                query = "INSERT neovox_products (product_name, description, value) VALUES ('Test', 'Test', 3)"
-                await cursor.execute(query)
+
+                request_json = await request.json()
+
+                if PRODUCT[1] in request_json:
+                    product_name = request_json[PRODUCT[1]].strip()
+                else:
+                    product_name = None
+
+                if PRODUCT[2] in request_json:
+                    description = request_json[PRODUCT[2]].strip()
+                else:
+                    description = None
+
+                if PRODUCT[3] in request_json:
+                    value = request_json[PRODUCT[3]]
+                    if not isinstance(value, int):
+                        return web.json_response({
+                            "Error": "'value' must be a number"
+                            })
+                else:
+                    value = None
+
+                if (product_name is None) or (description is None) or (value is None):
+                    return web.json_response({
+                        "Error": "Product_name, description and value required field"
+                        })
+
+                await cursor.execute(
+                    f"INSERT neovox_products (product_name, description, value) "
+                    f"VALUES ('{product_name}', '{description}', {value})"
+                )
                 await connection.commit()
-        return web.Response(text="Success INSERT data")
-    return web.Response(text="Error INSERT data")
+
+                return web.json_response({
+                    "Success": "INSERT executed successfully"
+                    })
+
+    return web.json_response({
+        "Error": "INSERT finished with error"
+        })
 
 
 async def mysql_delete_handler(request):
     async with request.app['db'].acquire() as connection:
         async with connection.cursor() as cursor:
-            query = "DELETE FROM neovox_products WHERE product_name='Test'"
+
+            if request.can_read_body:
+                request_json = await request.json()
+                if PRODUCT[1] in request_json:
+                    product_name = request_json[PRODUCT[1]].strip()
+                else:
+                    product_name = 'product'            # default product_name 
+                    #return web.json_response({
+                    #    "Error": "Product name are required"
+                    #    })
+            else:
+                return web.json_response({
+                    "Error": "Request is empty"
+                    })
+
+            query = f"DELETE FROM neovox_products WHERE product_name='{product_name}'"
             await cursor.execute(query)
             await connection.commit()
-    return web.Response(text="DELETE succesfully")
+    return web.json_response({
+        "Success": "DELETE executed successfully"
+        })
 
 
 async def redis_get_handler(request):
