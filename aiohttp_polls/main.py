@@ -9,7 +9,7 @@ from db import close_mysql
 
 logging.basicConfig(
     level=logging.DEBUG,
-    filename="log.json",
+    filename="server.log",
     format='%(asctime)s %(name)-14s %(levelname)-8s:: %(message)s',
     )
 
