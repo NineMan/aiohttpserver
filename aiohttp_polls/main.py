@@ -1,5 +1,4 @@
 from aiohttp import web
-from aiohttp import web_app
 import logging
 
 from settings import config

@@ -1,4 +1,3 @@
-from aiohttp import web
 from views import mysql_get_handler
 from views import mysql_post_handler
 from views import mysql_delete_handler
