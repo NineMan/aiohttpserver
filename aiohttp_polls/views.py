@@ -7,7 +7,7 @@ PRODUCT = ['id', 'product_name', 'description', 'value']
 
 
 async def mysql_get_handler(request):
-    async with request.app['db'].acquire() as connection:
+    async with request.app['db_mysql'].acquire() as connection:
         async with connection.cursor() as cursor:
             query = "SELECT id, product_name, description, value FROM neovox_products"
             await cursor.execute(query)
@@ -22,7 +22,7 @@ async def mysql_get_handler(request):
 
 async def mysql_post_handler(request):
     if request.method == 'POST':
-        async with request.app['db'].acquire() as connection:
+        async with request.app['db_mysql'].acquire() as connection:
             async with connection.cursor() as cursor:
 
                 request_json = await request.json()
@@ -72,7 +72,7 @@ async def mysql_post_handler(request):
 
 
 async def mysql_delete_handler(request):
-    async with request.app['db'].acquire() as connection:
+    async with request.app['db_mysql'].acquire() as connection:
         async with connection.cursor() as cursor:
 
             if request.can_read_body:
@@ -108,7 +108,16 @@ async def log_get_handler(request):
 
 
 async def redis_get_handler(request):
-    pass
+
+    with await request.app['db_redis'] as connection:
+        await connection.execute('set', 'my-key', 'value')
+        val = await connection.execute('get', 'my-key')
+
+    print('raw value:', val)
+
+    return web.json_response({
+        "Success": "Redis executed"
+        })
 
 
 async def redis_post_handler(request):

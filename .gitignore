@@ -49,3 +49,4 @@ venv.bak/
 # Debug/personal for this app
 *orig.py
 *.json
+dump.rdb

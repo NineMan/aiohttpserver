@@ -4,5 +4,7 @@ mysql:
   password: neovox_pass
   host: localhost
   port: 3306
-  minsize: 1
-  maxsize: 5  
+
+redis:
+  host: localhost
+  port: 6379
