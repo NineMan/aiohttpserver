@@ -1,5 +1,6 @@
 from aiohttp import web
 import json
+import aiofiles
 
 
 PRODUCT = ['id', 'product_name', 'description', 'value']
@@ -57,7 +58,7 @@ async def mysql_post_handler(request):
                 await connection.commit()
 
                 data = {"status": 200, "data": {"product_name": product_name, "description": description, "value": value}}
-                with open('log.json', mode='a') as file:
+                with open('log.json', mode='a', encoding='utf-8') as file:
                     json.dump(data, file)
                     file.write('\n')
 
@@ -97,7 +98,13 @@ async def mysql_delete_handler(request):
 
 
 async def log_get_handler(request):
-    pass
+    async with aiofiles.open('log.json', mode='r', encoding='utf-8') as f:
+        resp = []
+        async for line in f:
+            line = json.loads(line[:-1])
+            resp.append(line)
+
+    return web.json_response(resp)
 
 
 async def redis_get_handler(request):
