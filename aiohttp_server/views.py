@@ -22,7 +22,7 @@ async def mysql_get_handler(request):
                 resp = dict(zip(FIELDS, record))
                 response.append(resp)
 
-            return web.json_response(response)
+            return web.json_response(response, status=200)
 
 
 async def mysql_post_handler(request):
@@ -43,22 +43,24 @@ async def mysql_post_handler(request):
         if FIELDS[3] in request_json:
             value = request_json[FIELDS[3]]
             if not isinstance(value, int):
-                return web.json_response({
-                    "Error": "'value' must be a number"
-                    })
+                return web.json_response(
+                    {"Error": "value must be a number"},
+                    status=400
+                    )
         else:
             value = None
 
         if (product_name is None) or (description is None) or (value is None):
-            return web.json_response({
-                "Error": "Product_name, description and value required field"
-                })
+            return web.json_response(
+                {"Error": "Product_name, description and value required field"},
+                status=400
+                )
 
         async with request.app["db_mysql"].acquire() as connection:
             async with connection.cursor() as cursor:
                 await cursor.execute(
                     f"INSERT neovox_products (product_name, description, value) "
-                    f"VALUES ("{product_name}", "{description}", {value})"
+                    f"VALUES ('{product_name}', '{description}', {value})"
                 )
                 await connection.commit()
 
@@ -74,12 +76,14 @@ async def mysql_post_handler(request):
                      writer = Writer(afp)
                      await writer(data)
 
-                return web.json_response({
-                    "Success": "MySQL INSERT executed successfully"
-                    })
-    return web.json_response({
-        "Error": "Need POST request"
-        })
+                return web.json_response(
+                    {"Success": "MySQL INSERT executed successfully"},
+                    status=200
+                    )
+    return web.json_response(
+        {"Error": "Need POST request"},
+        status=400
+        )
 
 
 async def mysql_delete_handler(request):
@@ -90,13 +94,15 @@ async def mysql_delete_handler(request):
             product_name = request_json[FIELDS[1]].strip()
         else:
             #product_name = "product"            # set default product_name for developing
-            return web.json_response({
-                "Error": "Product name are required"
-                })
+            return web.json_response(
+                {"Error": "Product name are required"},
+                status=400
+                )
     else:
-        return web.json_response({
-            "Error": "Request is empty"
-            })
+        return web.json_response(
+            {"Error": "Request is empty"},
+            status=400
+            )
 
     async with request.app["db_mysql"].acquire() as connection:
         async with connection.cursor() as cursor:
@@ -104,9 +110,10 @@ async def mysql_delete_handler(request):
             await cursor.execute(query)
             await connection.commit()
 
-    return web.json_response({
-        "Success": "MySQL DELETE executed successfully"
-        })
+    return web.json_response(
+        {"Success": "MySQL DELETE executed successfully"},
+        status=200
+        )
 
 
 async def log_get_handler(request):
@@ -116,7 +123,7 @@ async def log_get_handler(request):
         response = ""
         async for line in LineReader(afp):
             response = response + line
-    return web.Response(text=response)
+    return web.Response(text=response, status=200)
 
 #    # Return response as json
 #    async with AIOFile("log.json", "r") as afp:
@@ -124,7 +131,7 @@ async def log_get_handler(request):
 #        async for line in LineReader(afp):
 #            string = loads(line)
 #            response.append(string)
-#    return web.json_response(response)
+#    return web.json_response(response, status=200)
 
 
 async def redis_get_handler(request):
@@ -143,7 +150,7 @@ async def redis_get_handler(request):
             resp["value"] = int(resp["value"])
             response.append(resp)
 
-    return web.json_response(response)
+    return web.json_response(response, status=200)
 
 
 async def redis_post_handler(request):
@@ -154,9 +161,10 @@ async def redis_post_handler(request):
         if FIELDS[1] in request_json:
             key = request_json[FIELDS[1]].strip()
         else:
-            return web.json_response({
-                "Error": "Product name are required"
-                })
+            return web.json_response(
+                {"Error": "Product name are required"},
+                status=400
+                )
 
         for field in request_json:
             with await request.app["db_redis"] as connection:
@@ -169,10 +177,12 @@ async def redis_post_handler(request):
             writer = Writer(afp)
             await writer(data)
 
-        return web.json_response({
-            "Success": "Redis SET executed successfully"
-            })
+        return web.json_response(
+            {"Success": "Redis SET executed successfully"},
+            status=200
+            )
 
-    return web.json_response({
-        "Error": "Need POST request"
-        })
+    return web.json_response(
+        {"Error": "Need POST request"},
+        status=400
+        )
