@@ -12,7 +12,7 @@ from db import close_redis
 logging.basicConfig(
     level=logging.DEBUG,
     filename="server.log",
-    format='%(asctime)s %(name)-14s %(levelname)-8s:: %(message)s',
+    format="%(asctime)s %(name)-14s %(levelname)-8s:: %(message)s",
     )
 
 
