@@ -1,31 +1,121 @@
 from aiofile import AIOFile
 from aiofile import LineReader
-from aiofile import Writer
 from aiohttp import web
 from json import dumps
 from json import loads
 
 
+# List fields of product in MySQL
 FIELDS = ["id", "product_name", "description", "value"]
+
+# Set of saved products in Redis (product_hash)
+NAME_OF_SET = 'products'
+
+
+async def fetch_mysql(query, pool):
+    try:
+        async with pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute(query)
+                records = await cursor.fetchall()
+                return records
+    except Exception:
+        return False
+
+
+async def commit_mysql(query, pool):
+
+    try:
+        async with pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute(query)
+                await connection.commit()
+                return True
+
+    except Exception as e:
+        return False
+
+
+async def write_log(request, response, file="log.json"):
+
+    try:
+        log = {
+            "status": response[1],
+            "method": request.method,
+            "path": request.path,
+            "data": response[0]
+        }
+        log = dumps(log) + "\n"
+
+        async with AIOFile(file, "a") as afp:
+            await afp.write(log)
+            await afp.fsync()
+        return True
+
+    except Exception:
+        return False
+
+
+async def hashget_redis(pool):
+
+    try:
+        with await pool as connection:
+            product_hashes = await connection.execute("smembers", NAME_OF_SET)
+            response = []
+
+            for product_hash in product_hashes:
+                keys_values = await connection.execute("hgetall", product_hash)
+
+                resp = {}
+                for i in range(0, len(keys_values), 2):
+                    key = keys_values[i].decode("utf-8")
+                    val = keys_values[i + 1].decode("utf-8")
+                    resp[key] = val
+                resp["value"] = int(resp["value"])
+                response.append(resp)
+                return response
+    except Exception:
+        return False
+
+
+async def hashadd_redis(key, request, pool):
+
+    try:
+        print("request =",request)
+        with await pool as connection:
+            for field, value in request.items():
+                print(field, value)
+                await connection.execute("hset", key, field, value)
+                await connection.execute("sadd", NAME_OF_SET, key)
+            return True
+
+    except Exception:
+        return False
 
 
 async def mysql_get_handler(request):
 
-    async with request.app["db_mysql"].acquire() as connection:
-        async with connection.cursor() as cursor:
-            query = "SELECT id, product_name, description, value FROM neovox_products"
-            await cursor.execute(query)
-            records = await cursor.fetchall()
+    query = "SELECT id, product_name, description, value FROM neovox_products"
+    pool_connections = request.app["db_mysql"]
 
-            response = []
-            for record in records:
-                resp = dict(zip(FIELDS, record))
-                response.append(resp)
+    records = await fetch_mysql(query, pool_connections)
 
-            return web.json_response(response, status=200)
+    if records:
+        answer = []
+        for record in records:
+            resp = dict(zip(FIELDS, record))
+            answer.append(resp)
+        response = answer, 200
+        await write_log(request, response)
+        return web.json_response(response[0], status=response[1])
+    else:
+        response = {"Error": "MySQL SELECT not executed"}, 400
+        await write_log(request, response)
+        return web.json_response(response[0], status=response[1])
 
 
 async def mysql_post_handler(request):
+
     if request.method == "POST":
 
         request_json = await request.json()
@@ -43,47 +133,32 @@ async def mysql_post_handler(request):
         if FIELDS[3] in request_json:
             value = request_json[FIELDS[3]]
             if not isinstance(value, int):
-                return web.json_response(
-                    {"Error": "value must be a number"},
-                    status=400
-                    )
+                response = {"Error": "value must be a number"}, 400
+                await write_log(request, response)
+                return web.json_response(response[0], status=response[1])
         else:
             value = None
 
         if (product_name is None) or (description is None) or (value is None):
-            return web.json_response(
-                {"Error": "Product_name, description and value required field"},
-                status=400
-                )
+            response = {"Error": "Product_name, description and value required field"}, 400
+            await write_log(request, response)
+            return web.json_response(response[0], status=response[1])
 
-        async with request.app["db_mysql"].acquire() as connection:
-            async with connection.cursor() as cursor:
-                await cursor.execute(
-                    f"INSERT neovox_products (product_name, description, value) "
-                    f"VALUES ('{product_name}', '{description}', {value})"
-                )
-                await connection.commit()
+        query = f"INSERT neovox_products (product_name, description, value) " \
+                f"VALUES ('{product_name}', '{description}', {value})"
+        pool_connections = request.app["db_mysql"]
+        ans = await commit_mysql(query, pool_connections)
 
-                data = {"status": 200,
-                        "data": {
-                            "product_name": product_name,
-                            "description": description,
-                            "value": value
-                        }}
-                data = dumps(data) + "\n"
+        if ans:
+            resp_log = request_json, 200
+            resp_web = {"Success": "MySQL INSERT executed successfully"}, 200
+            await write_log(request, resp_log)
+            return web.json_response(resp_web[0], status=resp_web[1])
 
-                async with AIOFile("log.json", "a") as afp:
-                     writer = Writer(afp)
-                     await writer(data)
-
-                return web.json_response(
-                    {"Success": "MySQL INSERT executed successfully"},
-                    status=200
-                    )
-    return web.json_response(
-        {"Error": "Need POST request"},
-        status=400
-        )
+        resp_log = request_json, 400
+        resp_web = {"Error": "MySQL INSERT not executed"}, 400
+        await write_log(request, resp_log)
+        return web.json_response(resp_web[0], status=resp_web[1])
 
 
 async def mysql_delete_handler(request):
@@ -93,67 +168,68 @@ async def mysql_delete_handler(request):
         if FIELDS[1] in request_json:
             product_name = request_json[FIELDS[1]].strip()
         else:
-            #product_name = "product"            # set default product_name for developing
-            return web.json_response(
-                {"Error": "Product name are required"},
-                status=400
-                )
+            response = {"Error": "Product name are required"}, 400
+            await write_log(request, response)
+            return web.json_response(response[0], status=response[1])
     else:
-        return web.json_response(
-            {"Error": "Request is empty"},
-            status=400
-            )
+        response = {"Error": "Request is empty"}, 400
+        await write_log(request, response)
+        return web.json_response(response[0], status=response[1])
 
-    async with request.app["db_mysql"].acquire() as connection:
-        async with connection.cursor() as cursor:
-            query = f"DELETE FROM neovox_products WHERE product_name='{product_name}'"
-            await cursor.execute(query)
-            await connection.commit()
+    query = f"DELETE FROM neovox_products WHERE product_name='{product_name}'"
+    pool_connections = request.app["db_mysql"]
 
-    return web.json_response(
-        {"Success": "MySQL DELETE executed successfully"},
-        status=200
-        )
+    ans = await commit_mysql(query, pool_connections)
+
+    if ans:
+        resp_log = request_json, 200
+        resp_web = {"Success": "MySQL DELETE executed successfully"}, 200
+        await write_log(request, resp_log)
+        return web.json_response(resp_web[0], status=resp_web[1])
+
+    resp_log = request_json, 400
+    resp_web = {"Error": "MySQL DELETE not executed"}, 400
+    await write_log(request, resp_log)
+    return web.json_response(resp_web[0], status=resp_web[1])
 
 
 async def log_get_handler(request):
 
-    # Return response as text
-    async with AIOFile("log.json", "r") as afp:
-        response = ""
-        async for line in LineReader(afp):
-            response = response + line
-    return web.Response(text=response, status=200)
+    try:
+        async with AIOFile("log.json", "r") as afp:
+            response = []
+            async for line in LineReader(afp):
+                string = loads(line)
+                response.append(string)
 
-#    # Return response as json
-#    async with AIOFile("log.json", "r") as afp:
-#        response = []
-#        async for line in LineReader(afp):
-#            string = loads(line)
-#            response.append(string)
-#    return web.json_response(response, status=200)
+        resp_log = "No data", 200
+        resp_web = response, 200
+        await write_log(request, resp_log)
+        return web.json_response(resp_web[0], status=resp_web[1])
+
+    except Exception:
+        resp_log = "No data", 400
+        resp_web = {"Error": "Log.json is not read"}, 400
+        await write_log(request, resp_log)
+        return web.json_response(resp_web[0], status=resp_web[1])
 
 
 async def redis_get_handler(request):
-    with await request.app["db_redis"] as connection:
-        product_hashes = await connection.execute("smembers", "products")
-        response = []
+    pool_connection = request.app["db_redis"]
+    answer = await hget_redis(pool_connection)
 
-        for product_hash in product_hashes:
-            keys_values = await connection.execute("hgetall", product_hash)
-
-            resp = {}
-            for i in range(0, len(keys_values), 2):
-                key = keys_values[i].decode("utf-8")
-                val = keys_values[i + 1].decode("utf-8")
-                resp[key] = val
-            resp["value"] = int(resp["value"])
-            response.append(resp)
-
-    return web.json_response(response, status=200)
+    if answer:
+        response = answer, 200
+        await write_log(request, response)
+        return web.json_response(response[0], status=response[1])
+    else:
+        response = {"Error": "Redis GET not executed"}, 400
+        await write_log(request, response)
+        return web.json_response(response[0], status=response[1])
 
 
 async def redis_post_handler(request):
+
     if request.method == "POST":
 
         request_json = await request.json()
@@ -161,28 +237,21 @@ async def redis_post_handler(request):
         if FIELDS[1] in request_json:
             key = request_json[FIELDS[1]].strip()
         else:
-            return web.json_response(
-                {"Error": "Product name are required"},
-                status=400
-                )
+            resp_log = request_json, 400
+            resp_web = {"Error": "Product_name are required"}, 400
+            await write_log(request, resp_log)
+            return web.json_response(resp_web[0], status=resp_web[1])
 
-        for field in request_json:
-            with await request.app["db_redis"] as connection:
-                await connection.execute("hset", key, field, request_json[field])
-                await connection.execute("sadd", "products", key)
+        pool_conn = request.app["db_redis"]
+        resp = await hashadd_redis(key, request_json, pool_conn)
 
-        data = {"status": 200, "data": request_json}
-        data = dumps(data) + "\n"
-        async with AIOFile("log.json", "a") as afp:
-            writer = Writer(afp)
-            await writer(data)
+        if resp:
+            resp_log = request_json, 200
+            resp_web = {"Success": "Redis HASHSET executed successfully"}, 200
+            await write_log(request, resp_log)
+            return web.json_response(resp_web[0], status=resp_web[1])
 
-        return web.json_response(
-            {"Success": "Redis SET executed successfully"},
-            status=200
-            )
-
-    return web.json_response(
-        {"Error": "Need POST request"},
-        status=400
-        )
+        resp_log = request_json, 400
+        resp_web = {"Error": "Redis HASHSET not executed"}, 400
+        await write_log(request, resp_log)
+        return web.json_response(resp_web[0], status=resp_web[1])
