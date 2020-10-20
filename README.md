@@ -26,7 +26,7 @@ The Redis database will store json with data similar to that in MySQL.
 Translated with www.DeepL.com/Translator (free version)
 
 
-**Hou run**
+**How run**
 ===
 
 Create and activate virtual environment:
