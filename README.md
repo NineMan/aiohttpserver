@@ -23,8 +23,10 @@ The MySQL database uses a table:
 
 The Redis database will store json with data similar to that in MySQL. 
 
-Translated with www.DeepL.com/Translator (free version)
-
+Used json's kind:
+```
+{"product_name": "test_product_name", "description": "test_description", "value": 22}
+```
 
 **How run**
 ===
