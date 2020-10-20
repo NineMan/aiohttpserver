@@ -46,7 +46,7 @@ You need running MySQL server.
 
 In 'init_db.py' set up USER and PASSWORD of MySQL
 
-Next - create and content MySQL database
+Next -> create and fill content MySQL database
 
 ```
 python init_db.py
